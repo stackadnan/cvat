@@ -12,8 +12,9 @@ import Text from 'antd/lib/typography/Text';
 import Button from 'antd/lib/button';
 import Empty from 'antd/lib/empty';
 import Result from 'antd/lib/result';
+import Select from 'antd/lib/select';
 
-import { getCore } from 'cvat-core-wrapper';
+import { getCore, Job } from 'cvat-core-wrapper';
 import GoBackButton from 'components/common/go-back-button';
 import CVATLoadingSpinner from 'components/common/loading-spinner';
 import LabelCountsChart from './label-counts-chart';
@@ -34,10 +35,10 @@ interface AnnotationCounts {
     labels: LabelCount[];
 }
 
-async function fetchAnnotationCounts(taskId: number): Promise<AnnotationCounts> {
+async function fetchAnnotationCounts(taskId: number, jobId: number | null): Promise<AnnotationCounts> {
     const response = await core.server.request(
         `${core.config.backendAPI}/annotation-counts/${taskId}`,
-        { method: 'GET' },
+        { method: 'GET', params: jobId === null ? {} : { job_id: jobId } },
     ) as { data: AnnotationCounts };
     return response.data;
 }
@@ -46,6 +47,8 @@ function AnnotationCountsPage(): JSX.Element {
     const { tid } = useParams<{ tid: string }>();
     const taskId = +tid;
 
+    const [jobs, setJobs] = useState<Job[]>([]);
+    const [jobId, setJobId] = useState<number | null>(null);
     const [counts, setCounts] = useState<AnnotationCounts | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const [fetching, setFetching] = useState(true);
@@ -57,18 +60,23 @@ function AnnotationCountsPage(): JSX.Element {
         setFetching(true);
         setError(null);
         try {
-            const result = await fetchAnnotationCounts(taskId);
+            const result = await fetchAnnotationCounts(taskId, jobId);
             if (request === latestRequest.current) setCounts(result);
         } catch (e) {
             if (request === latestRequest.current) setError(e as Error);
         } finally {
             if (request === latestRequest.current) setFetching(false);
         }
-    }, [taskId]);
+    }, [taskId, jobId]);
 
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        // the filter is optional, so if jobs can't be loaded the page still shows the task counts
+        core.jobs.get({ taskID: taskId }, true).then(setJobs).catch(() => setJobs([]));
+    }, [taskId]);
 
     let content: JSX.Element;
     if (error) {
@@ -83,7 +91,7 @@ function AnnotationCountsPage(): JSX.Element {
     } else if (fetching && !counts) {
         content = <CVATLoadingSpinner />;
     } else if (!counts || counts.total === 0) {
-        content = <Empty description='This task has no annotations yet' />;
+        content = <Empty description={`This ${jobId === null ? 'task' : 'job'} has no annotations yet`} />;
     } else {
         const unused = counts.labels.filter((label) => label.count === 0);
         content = (
@@ -108,6 +116,20 @@ function AnnotationCountsPage(): JSX.Element {
                 <Col span={22} xl={18} xxl={14}>
                     <GoBackButton />
                     <Title level={4}>{`Annotation counts for task #${taskId}`}</Title>
+                    {jobs.length > 1 && (
+                        <Select
+                            className='cvat-annotation-counts-job-filter'
+                            value={jobId}
+                            onChange={setJobId}
+                            options={[
+                                { value: null, label: 'All jobs' },
+                                ...jobs.map((job) => ({
+                                    value: job.id,
+                                    label: `Job #${job.id} (frames ${job.startFrame}-${job.stopFrame})`,
+                                })),
+                            ]}
+                        />
+                    )}
                     {content}
                 </Col>
             </Row>
