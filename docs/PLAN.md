@@ -47,4 +47,5 @@ Not starting anything after step 5 until the page actually works in the browser.
 
 ## Changes
 
-(nothing yet)
+- 03:00 - endpoint is `GET /api/annotation-counts/<task_id>` instead of `?task_id=`. With the id in the path DRF loads the task itself and CVAT's PolicyEnforcer calls my permission class with that task as the object, so I don't have to parse and look up task_id by hand before the access check.
+- 03:20 - running the Django tests needed the testing requirements installed in the server container and OPA pointed at `opa:8181` (development settings hardcode localhost). Took ~15 min I hadn't planned for, but backend was still ahead of the budget.
