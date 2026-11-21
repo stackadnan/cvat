@@ -40,6 +40,29 @@ api/labels?task_id=1&page_size=100
 
 With basic auth instead, all of these were 567-579ms.
 
-### Result
+### Result: missed (63.9 ms vs 60 ms target)
 
-not measured yet
+22 Nov 03:38 PKT, measured exactly as described above. Raw output:
+
+```
+MO-1  GET /api/annotation-counts/1  token auth  22 Nov 03:38:10 PKT
+run 1: median=72.6ms min=62.7ms max=84.1ms
+run 2: median=64.6ms min=59.2ms max=260.4ms
+run 3: median=63.9ms min=58.9ms max=68.3ms
+run 4: median=63.8ms min=58.8ms max=76.7ms
+run 5: median=61.7ms min=58.7ms max=69.3ms
+```
+
+Median of the 5 runs: **63.9 ms**. Spread of the run medians: 61.7 - 72.6 ms. Fastest single request 58.7 ms, one outlier at 260 ms in run 2.
+
+Why I missed it - timed each part inside the server (median of 20 calls, Django shell):
+
+```
+count query          13.3 ms
+get_labels (80)       2.7 ms
+task lookup           1.9 ms
+```
+
+So the endpoint is about 9 ms slower than /api/labels and nearly all of that is my count query. EXPLAIN ANALYZE shows most of it is sorting + aggregating all 8109 shape rows, plus ~3 ms of planning for the 3-part UNION. I tried counting the groups as a row `COUNT(DISTINCT (job_id, frame, group))` instead of the text key Django builds: 8.9 ms vs 10.9-12.3 ms execution, so maybe 2-3 ms, which is inside the noise between runs.
+
+What would actually get it under 60 ms is caching the counts, but a cache has to be cleared every time annotations change, and the live update part (item 8) needs that same "annotations changed" hook anyway. So I'm not adding caching now. If there's time after the websocket part I'll add it on top of that hook and measure again here.
