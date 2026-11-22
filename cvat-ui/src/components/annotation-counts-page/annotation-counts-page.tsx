@@ -13,11 +13,13 @@ import Button from 'antd/lib/button';
 import Empty from 'antd/lib/empty';
 import Result from 'antd/lib/result';
 import Select from 'antd/lib/select';
+import Tag from 'antd/lib/tag';
 
 import { getCore, Job } from 'cvat-core-wrapper';
 import GoBackButton from 'components/common/go-back-button';
 import CVATLoadingSpinner from 'components/common/loading-spinner';
 import LabelCountsChart from './label-counts-chart';
+import useLiveUpdates, { LiveStatus } from './use-live-updates';
 
 const core = getCore();
 
@@ -42,6 +44,13 @@ async function fetchAnnotationCounts(taskId: number, jobId: number | null): Prom
     ) as { data: AnnotationCounts };
     return response.data;
 }
+
+const LIVE_TAGS: Record<LiveStatus, { color: string; text: string }> = {
+    connecting: { color: 'default', text: 'Connecting…' },
+    live: { color: 'green', text: 'Live' },
+    reconnecting: { color: 'orange', text: 'Reconnecting…' },
+    unavailable: { color: 'default', text: 'Live updates off' },
+};
 
 function AnnotationCountsPage(): JSX.Element {
     const { tid } = useParams<{ tid: string }>();
@@ -72,6 +81,8 @@ function AnnotationCountsPage(): JSX.Element {
     useEffect(() => {
         load();
     }, [load]);
+
+    const liveStatus = useLiveUpdates(taskId, load);
 
     useEffect(() => {
         // the filter is optional, so if jobs can't be loaded the page still shows the task counts
@@ -115,7 +126,12 @@ function AnnotationCountsPage(): JSX.Element {
             <Row justify='center'>
                 <Col span={22} xl={18} xxl={14}>
                     <GoBackButton />
-                    <Title level={4}>{`Annotation counts for task #${taskId}`}</Title>
+                    <Title level={4}>
+                        {`Annotation counts for task #${taskId}`}
+                        <Tag className='cvat-annotation-counts-live' color={LIVE_TAGS[liveStatus].color}>
+                            {LIVE_TAGS[liveStatus].text}
+                        </Tag>
+                    </Title>
                     {jobs.length > 1 && (
                         <Select
                             className='cvat-annotation-counts-job-filter'
