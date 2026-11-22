@@ -39,9 +39,9 @@ Screenshots referred to below (1.png, 2.png, ...) are attached to the pull reque
 - ✅ chart updates without refresh when I save annotations in another tab
   - server side checked: socket got `{"event": "changed"}` 186 ms after the PATCH that added a shape, total went 7204 -> 7205, back to 7204 after deleting it
   - browser, on :8080: drew a person box in job 1 in another tab and saved, page went to 7,205 / person 2,252 without a reload, screenshot 5.png. Deleted it, back to 7,204.
-- ⬜ page reconnects after the server connection drops and shows current counts
+- ✅ page reconnects after the server connection drops and shows current counts
   - `docker restart cvat_server` with the page open: tag went to "Reconnecting…", screenshot 6.png
-  - back to "Live": (pending 7.png)
+  - came back to "Live" by itself once the server was up, counts 7,204, screenshot 7.png
 - ✅ decision record at the bottom of PLAN.md
 
 ## General
