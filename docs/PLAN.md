@@ -49,3 +49,16 @@ Not starting anything after step 5 until the page actually works in the browser.
 
 - 03:00 - endpoint is `GET /api/annotation-counts/<task_id>` instead of `?task_id=`. With the id in the path DRF loads the task itself and CVAT's PolicyEnforcer calls my permission class with that task as the object, so I don't have to parse and look up task_id by hand before the access check.
 - 03:20 - running the Django tests needed the testing requirements installed in the server container and OPA pointed at `opa:8181` (development settings hardcode localhost). Took ~15 min I hadn't planned for, but backend was still ahead of the budget.
+- 03:40 - MO-1 missed (63.9 ms vs 60). Plan said "caching only if I miss the target", but a cache needs the same "annotations changed" hook as the websocket, so I moved it after step 9 instead of doing it twice.
+- ~04:00 to 07:30 - my laptop went to sleep on battery in the middle of the websocket work and nothing ran for about 3.5 hours. Lost that time, deadline didn't move. Cut caching completely and kept the rest of the order.
+- 07:30 - live updates: no model signal fires for annotations (bulk_create), but every annotation save calls Job.touch() and that's the only place it's called, so I listen to post_save on Job with update_fields={"updated_date"}. No change to dataset_manager needed. Server runs 2 uvicorn processes so the message goes through Redis pub/sub.
+
+## Decision record
+
+**Took:** a plain ASGI websocket handler in my app plus Redis pub/sub, routed from `cvat/asgi.py`. The socket only says "changed", the page then re-fetches over the normal HTTP endpoint. When a socket connects, I run `GET /api/annotation-counts/<id>` internally through the full Django stack with the socket's cookies and only accept if it returns 200.
+
+**Rejected:** Django Channels (the usual way to do websockets in Django), and also pushing the new counts themselves through the socket.
+
+**What rejecting Channels cost:** I had to write the ASGI routing, the Redis subscribe/forward loop and the close handling myself (~100 lines in `live_updates.py`) and I don't get Channels' tested consumer/group machinery. Auth was the biggest part: Channels has AuthMiddlewareStack, I don't, so I reused the HTTP endpoint as the access check instead. That costs one extra internal request (~60 ms) per connection, but only on connect, and it means the socket can never disagree with the endpoint about who's allowed. What I got back: no new dependency, no change to how CVAT's server is started, and the change is one wrapper in asgi.py.
+
+**What not pushing counts cost:** one extra HTTP request per change (~64 ms, see MO-1) instead of zero. In return the job filter, sorting and access check all stay in one place and the socket message is the same for every viewer.
