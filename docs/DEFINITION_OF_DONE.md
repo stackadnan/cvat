@@ -57,7 +57,8 @@ Screenshots referred to below (1.png, 2.png, ...) are attached to the pull reque
   OK
   ```
 - ✅ everything I didn't finish is listed below with the reason
-- ⬜ PR from dev-test01 into develop on stackadnan/cvat (develop is CVAT's main branch)
+- ✅ PR from dev-test01 into develop on stackadnan/cvat (develop is CVAT's main branch)
+  - https://github.com/stackadnan/cvat/pull/1
 
 ## Didn't finish
 
