@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: MIT
 
+from unittest import mock
+
 from django.contrib.auth.models import Group
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -121,3 +124,29 @@ class AnnotationCountsTest(APITestCase):
         response = self._get(self.stranger, f"/api/annotation-counts/{self.task.id}")
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class LiveUpdatesSignalTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        owner = make_user("owner")
+        cls.task = Task.objects.create(name="live", owner=owner, segment_size=10)
+        segment = Segment.objects.create(task=cls.task, start_frame=0, stop_frame=9)
+        cls.job = Job.objects.create(segment=segment)
+
+    @mock.patch("cvat.apps.test.signals.publish_task_changed")
+    def test_annotation_save_publishes_after_commit(self, publish):
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            self.job.touch()  # what dataset_manager does after saving annotations
+            publish.assert_not_called()
+
+        self.assertEqual(len(callbacks), 1)
+        publish.assert_called_once_with(self.task.id)
+
+    @mock.patch("cvat.apps.test.signals.publish_task_changed")
+    def test_other_job_saves_are_ignored(self, publish):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.job.save()
+            self.job.save(update_fields=["state"])
+
+        publish.assert_not_called()
