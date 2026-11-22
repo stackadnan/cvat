@@ -53,6 +53,8 @@ Not starting anything after step 5 until the page actually works in the browser.
 - ~04:00 to 07:30 - my laptop went to sleep on battery in the middle of the websocket work and nothing ran for about 3.5 hours. Lost that time, deadline didn't move. Cut caching completely and kept the rest of the order.
 - 07:30 - live updates: no model signal fires for annotations (bulk_create), but every annotation save calls Job.touch() and that's the only place it's called, so I listen to post_save on Job with update_fields={"updated_date"}. No change to dataset_manager needed. Server runs 2 uvicorn processes so the message goes through Redis pub/sub.
 
+- 08:15 - testing the live update in the browser failed on the webpack dev server (:3000): saving annotations there gets "CSRF Failed: Origin checking failed - http://localhost:3000" because the server runs production settings. Not my code, but it blocked the test, so I rebuilt the cvat_ui image and did the browser checks on :8080 like a normal install.
+
 ## Decision record
 
 **Took:** a plain ASGI websocket handler in my app plus Redis pub/sub, routed from `cvat/asgi.py`. The socket only says "changed", the page then re-fetches over the normal HTTP endpoint. When a socket connects, I run `GET /api/annotation-counts/<id>` internally through the full Django stack with the socket's cookies and only accept if it returns 200.
